@@ -1,0 +1,18 @@
+## Build
+bin/
+obj/
+out/
+
+## SQLite
+*.db
+*.db-shm
+*.db-wal
+
+## IDE
+.vs/
+.idea/
+*.user
+
+## OS
+.DS_Store
+Thumbs.db
