@@ -18,6 +18,10 @@ public sealed class SlaService
         _ => 72
     };
 
+    /// <summary>
+    /// Returns the exact due timestamp for a ticket, adding the priority's SLA
+    /// window (<see cref="DueHours"/>) to the ticket's creation time.
+    /// </summary>
     public DateTimeOffset ComputeDueDate(TicketPriority priority, DateTimeOffset createdAt)
         => createdAt.AddHours(DueHours(priority));
 
