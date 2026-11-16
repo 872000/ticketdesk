@@ -21,6 +21,7 @@ public sealed class UsersController : ControllerBase
         _assignment = assignment;
     }
 
+    /// <summary>Lists all users (id, name, email, role), ordered by name. Admin only.</summary>
     [HttpGet]
     [Authorize(Roles = UserRoles.Admin)]
     public async Task<ActionResult<IReadOnlyList<object>>> List(CancellationToken ct)
@@ -29,11 +30,13 @@ public sealed class UsersController : ControllerBase
         return Ok(users.Select(u => new { u.Id, u.Name, u.Email, u.Role }).ToList());
     }
 
+    /// <summary>Returns per-agent workload (open / in-progress / overdue counts). Agent or Admin only.</summary>
     [HttpGet("workload")]
     [Authorize(Roles = $"{UserRoles.Agent},{UserRoles.Admin}")]
     public async Task<ActionResult<IReadOnlyList<AgentWorkload>>> Workload(CancellationToken ct)
         => Ok(await _assignment.GetWorkloadAsync(_db, ct));
 
+    /// <summary>Returns the currently authenticated user's own profile (id, name, email, role).</summary>
     [HttpGet("me")]
     public async Task<ActionResult<object>> Me(CancellationToken ct)
     {
