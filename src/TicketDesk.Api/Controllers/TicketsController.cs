@@ -9,6 +9,11 @@ using TicketDesk.Api.Services;
 
 namespace TicketDesk.Api.Controllers;
 
+/// <summary>
+/// Ticket endpoints. Requesters only ever see their own tickets; agents and
+/// admins see everything. Every mutation writes an audit entry, and changing
+/// a ticket's priority recomputes its SLA due date.
+/// </summary>
 [ApiController]
 [Route("api/tickets")]
 [Authorize]
@@ -28,6 +33,10 @@ public sealed class TicketsController : ControllerBase
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private bool IsStaff => User.IsInRole(UserRoles.Agent) || User.IsInRole(UserRoles.Admin);
 
+    /// <summary>
+    /// Lists tickets newest first. Requesters see only their own; staff see
+    /// all. Optional filters: status, priority, assignee.
+    /// </summary>
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<TicketDto>>> List(
         [FromQuery] TicketStatus? status,
@@ -64,6 +73,7 @@ public sealed class TicketsController : ControllerBase
         return Ok(tickets.Select(t => ToDto(t, users, now)).ToList());
     }
 
+    /// <summary>Returns one ticket. Requesters may only fetch their own.</summary>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<TicketDto>> Get(Guid id, CancellationToken ct)
     {
@@ -82,6 +92,10 @@ public sealed class TicketsController : ControllerBase
         return Ok(ToDto(ticket, users, DateTimeOffset.UtcNow));
     }
 
+    /// <summary>
+    /// Creates a ticket as Open, owned by the caller, with its SLA due date
+    /// computed from the requested priority.
+    /// </summary>
     [HttpPost]
     public async Task<ActionResult<TicketDto>> Create([FromBody] CreateTicketRequest request, CancellationToken ct)
     {
@@ -107,6 +121,11 @@ public sealed class TicketsController : ControllerBase
         return CreatedAtAction(nameof(Get), new { id = ticket.Id }, ToDto(ticket, users, now));
     }
 
+    /// <summary>
+    /// Patches title, description, priority, and/or status. Requesters may
+    /// only edit their own open tickets and may not change status; a priority
+    /// change recomputes the SLA due date. Returns 400 when nothing changed.
+    /// </summary>
     [HttpPatch("{id:guid}")]
     public async Task<ActionResult<TicketDto>> Update(Guid id, [FromBody] UpdateTicketRequest request, CancellationToken ct)
     {
@@ -178,6 +197,11 @@ public sealed class TicketsController : ControllerBase
         return Ok(ToDto(ticket, users, now));
     }
 
+    /// <summary>
+    /// Assigns a ticket to an agent or admin (staff only). With no assignee
+    /// given, routes to the least-loaded agent. An Open ticket moves to
+    /// In Progress on assignment.
+    /// </summary>
     [HttpPost("{id:guid}/assign")]
     [Authorize(Roles = $"{UserRoles.Agent},{UserRoles.Admin}")]
     public async Task<ActionResult<TicketDto>> Assign(Guid id, [FromBody] AssignTicketRequest request, CancellationToken ct)
@@ -222,6 +246,10 @@ public sealed class TicketsController : ControllerBase
         return Ok(ToDto(ticket, users, now));
     }
 
+    /// <summary>
+    /// Adds a public comment or an agent-only internal note. Requesters may
+    /// comment only on their own tickets and may not post internal notes.
+    /// </summary>
     [HttpPost("{id:guid}/comments")]
     public async Task<ActionResult<CommentDto>> AddComment(Guid id, [FromBody] CreateCommentRequest request, CancellationToken ct)
     {
@@ -269,6 +297,10 @@ public sealed class TicketsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Lists a ticket's comments oldest first. Internal notes are hidden
+    /// from requesters.
+    /// </summary>
     [HttpGet("{id:guid}/comments")]
     public async Task<ActionResult<IReadOnlyList<CommentDto>>> GetComments(Guid id, CancellationToken ct)
     {
@@ -303,6 +335,7 @@ public sealed class TicketsController : ControllerBase
         }).ToList());
     }
 
+    /// <summary>Returns a ticket's audit trail, oldest first (staff only).</summary>
     [HttpGet("{id:guid}/audit")]
     [Authorize(Roles = $"{UserRoles.Agent},{UserRoles.Admin}")]
     public async Task<ActionResult<IReadOnlyList<AuditDto>>> GetAudit(Guid id, CancellationToken ct)
@@ -329,6 +362,10 @@ public sealed class TicketsController : ControllerBase
         }).ToList());
     }
 
+    /// <summary>
+    /// Lists open/in-progress tickets that are breached or near breach,
+    /// soonest due first (staff only).
+    /// </summary>
     [HttpGet("sla/breaches")]
     [Authorize(Roles = $"{UserRoles.Agent},{UserRoles.Admin}")]
     public async Task<ActionResult<IReadOnlyList<TicketDto>>> Breaches(CancellationToken ct)
